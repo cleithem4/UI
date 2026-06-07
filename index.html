@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0a0a0c" />
+<title>OmniDrone — 360° Propulsion Concept</title>
+<style>
+  :root{
+    --bg:#0a0a0c;
+    --panel:rgba(18,18,22,0.82);
+    --accent:#ff8a5c;     /* peach/orange from the reference */
+    --accent2:#ffd6a0;
+    --up:#5cc8ff;         /* cyan = up-facing rotors */
+    --omni:#ff8a5c;       /* orange = omni rotors */
+    --text:#f4f1ee;
+    --muted:#9a958f;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;overscroll-behavior:none;}
+  #app{position:fixed;inset:0;}
+  canvas{display:block;touch-action:none;}
+
+  /* Title */
+  .title{position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;padding:14px 18px 6px;
+    pointer-events:none;z-index:5;}
+  .title h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-0.2px;line-height:1.15;}
+  .title h1 .hl{color:var(--accent);}
+  .title p{margin:3px 0 0;font-size:12.5px;color:var(--muted);font-weight:500;}
+
+  /* Bottom control sheet */
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:6;
+    padding:12px 12px calc(12px + env(safe-area-inset-bottom,0));
+    background:linear-gradient(to top,rgba(8,8,10,0.96) 60%,rgba(8,8,10,0));}
+  .seg{display:flex;gap:6px;background:var(--panel);border:1px solid rgba(255,255,255,0.06);
+    border-radius:14px;padding:6px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+  .seg button{flex:1;border:0;background:transparent;color:var(--muted);
+    font-size:11.5px;font-weight:700;padding:9px 4px;border-radius:10px;cursor:pointer;
+    transition:.18s;line-height:1.2;white-space:nowrap;}
+  .seg button .n{display:block;font-size:9px;font-weight:600;opacity:.7;margin-top:2px;}
+  .seg button.active{background:var(--accent);color:#1a0e06;box-shadow:0 4px 14px rgba(255,138,92,.35);}
+
+  .info{background:var(--panel);border:1px solid rgba(255,255,255,0.06);border-radius:14px;
+    padding:12px 14px;margin-top:9px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+  .info h2{margin:0 0 4px;font-size:14.5px;font-weight:800;}
+  .info p{margin:0;font-size:12px;line-height:1.5;color:#cfc9c2;}
+  .stats{display:flex;gap:14px;margin-top:9px;}
+  .stat{flex:1;}
+  .stat .v{font-size:15px;font-weight:800;color:var(--accent2);}
+  .stat .l{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:1px;}
+
+  .toolbar{display:flex;gap:8px;margin-top:9px;}
+  .toolbar button{flex:1;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);
+    color:var(--text);font-size:12px;font-weight:700;padding:10px;border-radius:11px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;}
+  .toolbar button.on{border-color:var(--accent);color:var(--accent);}
+  .toolbar button:active{transform:scale(.97);}
+
+  /* legend */
+  .legend{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0) + 64px);z-index:5;
+    display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none;}
+  .legend .row{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);
+    background:rgba(12,12,14,.55);padding:4px 8px;border-radius:8px;backdrop-filter:blur(6px);}
+  .legend .dot{width:9px;height:9px;border-radius:50%;}
+
+  .hint{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;
+    color:var(--muted);font-size:13px;z-index:4;pointer-events:none;transition:opacity .6s;}
+  .hint span{background:rgba(12,12,14,.6);padding:7px 14px;border-radius:20px;}
+
+  #loader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:var(--bg);z-index:20;color:var(--muted);font-size:13px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="title">
+  <h1><span class="hl">Omnidirectional</span> propulsion — 360° concept</h1>
+  <p>Drag to orbit · pinch to zoom · tap a mode below</p>
+</div>
+
+<div class="legend">
+  <div class="row"><span class="dot" style="background:var(--up)"></span>Up-facing rotor</div>
+  <div class="row"><span class="dot" style="background:var(--omni)"></span>360° / tilted rotor</div>
+</div>
+
+<div class="hint" id="hint"><span>👆 Drag to rotate the drone</span></div>
+
+<div class="sheet">
+  <div class="seg" id="seg">
+    <button data-mode="0" class="active">Classic<span class="n">4× up</span></button>
+    <button data-mode="1">Hybrid<span class="n">up + tilt</span></button>
+    <button data-mode="2">Omni-6<span class="n">±X ±Y ±Z</span></button>
+    <button data-mode="3">Omni-Sphere<span class="n">all angles</span></button>
+  </div>
+
+  <div class="info">
+    <h2 id="i-title">Classic quad</h2>
+    <p id="i-desc">All four rotors face straight up. Thrust only points up, so the drone must tilt its whole body to move sideways — like every standard FPV / camera drone.</p>
+    <div class="stats">
+      <div class="stat"><div class="v" id="s-rotors">4</div><div class="l">Rotors</div></div>
+      <div class="stat"><div class="v" id="s-dof">4</div><div class="l">Controllable DOF</div></div>
+      <div class="stat"><div class="v" id="s-thrust">Up only</div><div class="l">Thrust axis</div></div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button id="b-spin" class="on">⏸ Spin</button>
+    <button id="b-thrust">➤ Thrust vectors</button>
+    <button id="b-auto">↻ Auto-orbit</button>
+  </div>
+</div>
+
+<div id="loader">Loading 3D…</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const app = document.getElementById('app');
+
+/* ---------- renderer / scene / camera ---------- */
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a0c);
+scene.fog = new THREE.Fog(0x0a0a0c, 14, 30);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(5.5, 3.2, 6.5);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 3.5;
+controls.maxDistance = 16;
+controls.target.set(0, 0.2, 0);
+
+/* ---------- lights ---------- */
+scene.add(new THREE.HemisphereLight(0x99bbff, 0x1a1410, 0.55));
+const key = new THREE.DirectionalLight(0xfff0e0, 2.1);
+key.position.set(6, 10, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(1024,1024);
+key.shadow.camera.near = 1; key.shadow.camera.far = 40;
+key.shadow.camera.left=-8; key.shadow.camera.right=8;
+key.shadow.camera.top=8; key.shadow.camera.bottom=-8;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xff8a5c, 1.3);
+rim.position.set(-6, 2, -5);
+scene.add(rim);
+
+/* ground */
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(20, 64),
+  new THREE.MeshStandardMaterial({ color:0x101012, roughness:1, metalness:0 })
+);
+ground.rotation.x = -Math.PI/2;
+ground.position.y = -2.2;
+ground.receiveShadow = true;
+scene.add(ground);
+const grid = new THREE.GridHelper(28, 28, 0x2a2a30, 0x1a1a1e);
+grid.position.y = -2.19;
+scene.add(grid);
+
+/* ---------- materials ---------- */
+const matBody  = new THREE.MeshStandardMaterial({ color:0x16161a, roughness:.45, metalness:.7 });
+const matArm   = new THREE.MeshStandardMaterial({ color:0x202026, roughness:.5, metalness:.6 });
+const matHubUp = new THREE.MeshStandardMaterial({ color:0x5cc8ff, roughness:.3, metalness:.4, emissive:0x0a2c40, emissiveIntensity:1 });
+const matHubO  = new THREE.MeshStandardMaterial({ color:0xff8a5c, roughness:.3, metalness:.4, emissive:0x401705, emissiveIntensity:1 });
+const matBlade = new THREE.MeshStandardMaterial({ color:0xe8e4df, roughness:.4, metalness:.1, side:THREE.DoubleSide, transparent:true, opacity:.55 });
+const matDuct  = new THREE.MeshStandardMaterial({ color:0x303036, roughness:.6, metalness:.5 });
+
+/* ---------- build one rotor unit ---------- */
+/* A rotor "points" along +Y in local space (its thrust axis). We orient it
+   so local +Y aligns with the requested world direction. */
+function makeRotor(isOmni){
+  const g = new THREE.Group();
+  const mat = isOmni ? matHubO : matHubUp;
+
+  // motor can
+  const can = new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.26,20), matArm);
+  can.castShadow = true; g.add(can);
+
+  // glowing hub
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,.34,20), mat);
+  hub.position.y = .14; hub.castShadow = true; g.add(hub);
+
+  // protective duct ring
+  const duct = new THREE.Mesh(new THREE.TorusGeometry(.62,.045,10,40), matDuct);
+  duct.rotation.x = Math.PI/2; duct.position.y = .3; g.add(duct);
+
+  // spinning blade assembly (3 blades)
+  const props = new THREE.Group();
+  props.position.y = .3;
+  for(let i=0;i<3;i++){
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(.58,.012,.12), matBlade);
+    blade.position.x = .29;
+    blade.rotation.y = .25;
+    const arm = new THREE.Group();
+    arm.rotation.y = (i/3)*Math.PI*2;
+    arm.add(blade);
+    props.add(arm);
+  }
+  // motion-blur disk (only visible while spinning fast)
+  const disk = new THREE.Mesh(
+    new THREE.CircleGeometry(.6, 32),
+    new THREE.MeshBasicMaterial({ color: isOmni?0xff8a5c:0x5cc8ff, transparent:true, opacity:0.0, side:THREE.DoubleSide })
+  );
+  disk.rotation.x = -Math.PI/2; disk.position.y = .31;
+  props.add(disk);
+
+  g.add(props);
+  g.userData = { props, disk, isOmni };
+  return g;
+}
+
+/* thrust arrow for a rotor (points along thrust direction) */
+function makeArrow(color){
+  const a = new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,0), 1.25, color, .3, .18);
+  a.line.material.transparent = true; a.cone.material.transparent = true;
+  return a;
+}
+
+/* orient a group's local +Y to a world direction vector */
+const UP = new THREE.Vector3(0,1,0);
+function aimY(obj, dir){
+  const d = dir.clone().normalize();
+  obj.quaternion.setFromUnitVectors(UP, d);
+}
+
+/* ---------- drone assembly ---------- */
+const drone = new THREE.Group();
+scene.add(drone);
+
+const rotorPool = [];   // active rotor groups
+const arrowPool = [];
+
+function clearDrone(){
+  while(drone.children.length) drone.remove(drone.children[0]);
+  rotorPool.length = 0; arrowPool.length = 0;
+}
+
+/* central body — sleek for classic, spherical core for omni */
+function addBody(spherical){
+  if(spherical){
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(.62,1), matBody);
+    core.castShadow = true; drone.add(core);
+    const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(.7,1),
+      new THREE.MeshStandardMaterial({color:0xff8a5c, wireframe:true, transparent:true, opacity:.18}));
+    drone.add(shell);
+  }else{
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.5,.36,.7), matBody);
+    body.castShadow = true; drone.add(body);
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(.3,16,12,0,Math.PI*2,0,Math.PI/2),
+      new THREE.MeshStandardMaterial({color:0x0a0a0c, roughness:.1, metalness:.3}));
+    canopy.scale.set(1,.7,1.3); canopy.position.set(.35,.16,0); drone.add(canopy);
+  }
+}
+
+/* place a rotor: pos = arm-end position, dir = thrust direction, isOmni flag */
+function addRotor(pos, dir, isOmni){
+  // arm connecting core to rotor
+  const armVec = new THREE.Vector3().copy(pos);
+  const len = armVec.length();
+  if(len > 0.05){
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(.05,.07,len,8), matArm);
+    arm.position.copy(armVec.clone().multiplyScalar(0.5));
+    aimY(arm, armVec);
+    arm.castShadow = true;
+    drone.add(arm);
+  }
+  const r = makeRotor(isOmni);
+  r.position.copy(pos);
+  aimY(r, dir);
+  drone.add(r);
+  rotorPool.push(r);
+
+  const arrow = makeArrow(isOmni?0xff8a5c:0x5cc8ff);
+  arrow.position.copy(pos);
+  aimY(arrow, dir);
+  arrow.visible = false;
+  drone.add(arrow);
+  arrowPool.push(arrow);
+}
+
+/* ---------- the four configurations ---------- */
+const V = (x,y,z)=>new THREE.Vector3(x,y,z);
+
+const CONFIGS = [
+  {
+    title:'Classic quad',
+    desc:'All four rotors face straight up. Thrust only points up, so the drone must tilt its whole body to fly sideways — like every standard FPV / camera drone.',
+    rotors:4, dof:4, thrust:'Up only',
+    build(){
+      addBody(false);
+      const r=1.25, y=.18;
+      [[r,r],[r,-r],[-r,r],[-r,-r]].forEach(([x,z])=>{
+        addRotor(V(x,y,z), V(0,1,0), false);  // all up-facing
+      });
+    }
+  },
+  {
+    title:'Hybrid tilt',
+    desc:'Lift rotors still face up, but extra rotors are canted outward. The drone can push itself sideways and hold a tilt without losing altitude — a stepping stone toward full omni control.',
+    rotors:6, dof:5, thrust:'Up + lateral',
+    build(){
+      addBody(false);
+      const r=1.25,y=.18;
+      // 4 up-facing lift rotors
+      [[r,r],[r,-r],[-r,r],[-r,-r]].forEach(([x,z])=> addRotor(V(x,y,z), V(0,1,0), false));
+      // 2 side-tilted thrust rotors (front & back), canted 55°
+      addRotor(V( 1.55,0,0), V(.82,.57,0), true);
+      addRotor(V(-1.55,0,0), V(-.82,.57,0), true);
+    }
+  },
+  {
+    title:'Omni-6 (orthogonal)',
+    desc:'Six rotors face ±X, ±Y, ±Z — the faces of a cube. The drone can generate thrust straight up, down, left, right, forward or back without ever tilting. Full 6-DOF: move and rotate in any axis independently.',
+    rotors:6, dof:6, thrust:'All 6 axes',
+    build(){
+      addBody(true);
+      const d=1.45;
+      const dirs=[V(1,0,0),V(-1,0,0),V(0,1,0),V(0,-1,0),V(0,0,1),V(0,0,-1)];
+      dirs.forEach(dir=>{
+        const isUp = dir.y>0.9;       // colour the pure-up one cyan, rest orange
+        addRotor(dir.clone().multiplyScalar(d), dir.clone(), !isUp);
+      });
+    }
+  },
+  {
+    title:'Omni-sphere (all angles)',
+    desc:'Rotors arranged around a sphere — facing up, down, sideways AND every diagonal in between. Hover at any attitude, fly any direction instantly, even upside-down. This is the “blades facing all 360°” idea taken to its limit.',
+    rotors:12, dof:6, thrust:'Every direction',
+    build(){
+      addBody(true);
+      const d=1.5;
+      // 12 vertices of an icosahedron = evenly spread directions in 3D
+      const t=(1+Math.sqrt(5))/2;
+      let verts=[
+        [-1,t,0],[1,t,0],[-1,-t,0],[1,-t,0],
+        [0,-1,t],[0,1,t],[0,-1,-t],[0,1,-t],
+        [t,0,-1],[t,0,1],[-t,0,-1],[-t,0,1]
+      ].map(v=>V(v[0],v[1],v[2]).normalize());
+      verts.forEach(dir=>{
+        const isUp = dir.y>0.85;
+        addRotor(dir.clone().multiplyScalar(d), dir.clone(), !isUp);
+      });
+    }
+  }
+];
+
+let current = 0;
+function setConfig(i){
+  current = i;
+  clearDrone();
+  CONFIGS[i].build();
+  const c = CONFIGS[i];
+  document.getElementById('i-title').textContent = c.title;
+  document.getElementById('i-desc').textContent  = c.desc;
+  document.getElementById('s-rotors').textContent= c.rotors;
+  document.getElementById('s-dof').textContent   = c.dof;
+  document.getElementById('s-thrust').textContent= c.thrust;
+  arrowPool.forEach(a=>a.visible = showThrust);
+}
+
+/* ---------- UI wiring ---------- */
+let spinning = true, showThrust = false, autoOrbit = false;
+
+document.getElementById('seg').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#seg button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  setConfig(+b.dataset.mode);
+});
+const bSpin=document.getElementById('b-spin');
+const bThrust=document.getElementById('b-thrust');
+const bAuto=document.getElementById('b-auto');
+bSpin.onclick=()=>{ spinning=!spinning; bSpin.classList.toggle('on',spinning); bSpin.textContent=(spinning?'⏸':'▶')+' Spin'; };
+bThrust.onclick=()=>{ showThrust=!showThrust; bThrust.classList.toggle('on',showThrust); arrowPool.forEach(a=>a.visible=showThrust); };
+bAuto.onclick=()=>{ autoOrbit=!autoOrbit; bAuto.classList.toggle('on',autoOrbit); controls.autoRotate=autoOrbit; controls.autoRotateSpeed=1.2; };
+
+/* hide the drag hint after first interaction */
+const hint=document.getElementById('hint');
+let dismissed=false;
+function dismissHint(){ if(dismissed)return; dismissed=true; hint.style.opacity=0; }
+controls.addEventListener('start',dismissHint);
+setTimeout(dismissHint, 4000);
+
+/* ---------- animate ---------- */
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  if(spinning){
+    rotorPool.forEach((r,idx)=>{
+      const dir = (idx%2?1:-1);           // alternate spin direction
+      r.userData.props.rotation.y += dt*38*dir;
+      r.userData.disk.material.opacity = 0.10;
+    });
+  } else {
+    rotorPool.forEach(r=> r.userData.disk.material.opacity = 0);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+/* ---------- init ---------- */
+setConfig(0);
+document.getElementById('loader').style.display='none';
+animate();
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
