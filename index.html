@@ -115,16 +115,18 @@
 
 <div id="loader">Loading 3D…</div>
 
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-}}
-</script>
+<!-- Global (non-module) three.js build: works via htmlpreview and when the file
+     is opened directly on a phone, without needing importmap / ES-module support. -->
+<script src="https://unpkg.com/three@0.137.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.137.0/examples/js/controls/OrbitControls.js"></script>
 
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+<script>
+if (typeof THREE === 'undefined') {
+  document.getElementById('loader').innerHTML =
+    'Could not load the 3D library.<br>Check your internet connection and reload.';
+  throw new Error('three.js failed to load');
+}
+const OrbitControls = THREE.OrbitControls;
 
 const app = document.getElementById('app');
 
